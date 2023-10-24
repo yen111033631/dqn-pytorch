@@ -6,7 +6,7 @@ import random
 import numpy as np 
 import time
 
-import gym
+import gymnasium as gym
 
 from wrappers import *
 from memory import ReplayMemory
@@ -54,7 +54,7 @@ def optimize_model():
 
     non_final_mask = torch.tensor(
         tuple(map(lambda s: s is not None, batch.next_state)),
-        device=device, dtype=torch.uint8)
+        device=device, dtype=torch.bool) # FIXME
     
     non_final_next_states = torch.cat([s for s in batch.next_state
                                        if s is not None]).to('cuda')
@@ -79,14 +79,12 @@ def optimize_model():
     optimizer.step()
 
 def get_state(obs):
-    state = np.array(obs)
-    state = state.transpose((2, 0, 1))
-    state = torch.from_numpy(state)
-    return state.unsqueeze(0)
+    state = torch.tensor(np.array(obs), dtype=torch.float32).view(1, 4, 84, -1) 
+    return state
 
 def train(env, n_episodes, render=False):
     for episode in range(n_episodes):
-        obs = env.reset()
+        obs, info = env.reset(seed=SEED+episode)
         state = get_state(obs)
         total_reward = 0.0
         for t in count():
@@ -95,7 +93,8 @@ def train(env, n_episodes, render=False):
             if render:
                 env.render()
 
-            obs, reward, done, info = env.step(action)
+            obs, reward, terminated, truncated, _ = env.step(action)
+            done = terminated or truncated  
 
             total_reward += reward
 
@@ -158,7 +157,7 @@ if __name__ == '__main__':
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     # hyperparameters
-    BATCH_SIZE = 32
+    BATCH_SIZE = 128
     GAMMA = 0.99
     EPS_START = 1
     EPS_END = 0.02
@@ -168,20 +167,31 @@ if __name__ == '__main__':
     lr = 1e-4
     INITIAL_MEMORY = 10000
     MEMORY_SIZE = 10 * INITIAL_MEMORY
+    
+    # random seed
+    SEED = 525
+    random.seed(SEED)
+    torch.manual_seed(seed=SEED)
+    random.seed(SEED)    
+
+    # create environment
+    env = gym.make("ALE/Pong-v5", render_mode="rgb_array")
+    env = make_env(env)
+    env.action_space.seed(seed=SEED)
+    n_actions = env.action_space.n
+    n_frames = env.frames.maxlen
+    
+    print("n_actions:", n_actions, "n_frames:", n_frames)
 
     # create networks
-    policy_net = DQN(n_actions=4).to(device)
-    target_net = DQN(n_actions=4).to(device)
+    policy_net = DQN(in_channels=n_frames, n_actions=n_actions).to(device)
+    target_net = DQN(in_channels=n_frames, n_actions=n_actions).to(device)
     target_net.load_state_dict(policy_net.state_dict())
 
     # setup optimizer
     optimizer = optim.Adam(policy_net.parameters(), lr=lr)
 
     steps_done = 0
-
-    # create environment
-    env = gym.make("PongNoFrameskip-v4")
-    env = make_env(env)
 
     # initialize replay memory
     memory = ReplayMemory(MEMORY_SIZE)
