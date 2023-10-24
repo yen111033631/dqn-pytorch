@@ -5,6 +5,7 @@ import math
 import random
 import numpy as np 
 import time
+import pandas as pd
 
 import gymnasium as gym
 
@@ -83,17 +84,32 @@ def get_state(obs):
     return state
 
 def train(env, n_episodes, render=False):
-    for episode in range(n_episodes): # FIXME
-    # for episode in range(5):
+    
+    episode_rewards = []
+    episode_durations = []
+    episode_times = []
+    episode_env_times = []
+    episode_model_times = []
+    all_steps = []
+    
+    rl_result = []
+    
+    for episode in range(n_episodes):
+        # env reset
         obs, info = env.reset(seed=SEED+episode)
         state = get_state(obs)
-        total_reward = 0.0
         
-        for t in count(): # FIXME
-        # for t in range(5):
+        # init  
+        total_reward = 0.0
+        env_times_all = 0
+        model_times_all = 0
+        
+        episode_start = time.time()
+        
+        
+        for t in count():
+            env_start = time.time()
             action = select_action(state)
-            
-            # print("action", action.item())
 
             if render:
                 env.render()
@@ -101,9 +117,7 @@ def train(env, n_episodes, render=False):
             obs, reward, terminated, truncated, _ = env.step(action.item())
             done = terminated or truncated  
 
-            total_reward += reward
-            
-            
+            total_reward += reward                  
 
             if not done:
                 next_state = get_state(obs)
@@ -114,6 +128,8 @@ def train(env, n_episodes, render=False):
 
             memory.push(state, action, next_state, reward)
             state = next_state
+            
+            env_end = time.time()
 
             if steps_done > INITIAL_MEMORY:
                 optimize_model()
@@ -121,10 +137,25 @@ def train(env, n_episodes, render=False):
                 if steps_done % TARGET_UPDATE == 0:
                     target_net.load_state_dict(policy_net.state_dict())
 
+            model_end = time.time()
+            
+            env_times_all += env_end - env_start
+            model_times_all += model_end - env_end
+            
             if done:
+                episode_end = time.time()                
+                one_episode_time = episode_end - episode_start
+                
+                rl_result.append([episode, t, total_reward, one_episode_time, env_times_all, model_times_all, steps_done])
                 break
         if episode % 20 == 0:
                 print('Total steps: {} \t Episode: {}/{} \t Total reward: {}'.format(steps_done, episode, t, total_reward))
+                df = pd.DataFrame(rl_result)
+                df.columns = ["episode", "t", "total_reward", "one_episode_time", "env_times_all", "model_times_all", "steps_done"]
+                excel_path = "./output/DQN_Pong_result.xlsx"
+                df.to_excel(excel_path, index=False)
+                print("excel saved!")
+                
     env.close()
     return
 
@@ -204,7 +235,7 @@ if __name__ == '__main__':
     memory = ReplayMemory(MEMORY_SIZE)
     
     # train model
-    train(env, 400)
+    train(env, 1000)
     # torch.save(policy_net, "dqn_pong_model")
     # policy_net = torch.load("dqn_pong_model")
     # test(env, 1, policy_net, render=False)
