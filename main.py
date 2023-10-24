@@ -32,7 +32,7 @@ def select_action(state):
         with torch.no_grad():
             return policy_net(state.to('cuda')).max(1)[1].view(1,1)
     else:
-        return torch.tensor([[random.randrange(4)]], device=device, dtype=torch.long)
+        return torch.tensor([[env.action_space.sample()]], device=device, dtype=torch.long)
 
     
 def optimize_model():
