@@ -85,13 +85,6 @@ def get_state(obs):
 
 def train(env, n_episodes, render=False):
     
-    episode_rewards = []
-    episode_durations = []
-    episode_times = []
-    episode_env_times = []
-    episode_model_times = []
-    all_steps = []
-    
     rl_result = []
     
     for episode in range(n_episodes):
@@ -150,9 +143,10 @@ def train(env, n_episodes, render=False):
                 break
         if episode % 20 == 0:
                 print('Total steps: {} \t Episode: {}/{} \t Total reward: {}'.format(steps_done, episode, t, total_reward))
+                
                 df = pd.DataFrame(rl_result)
                 df.columns = ["episode", "t", "total_reward", "one_episode_time", "env_times_all", "model_times_all", "steps_done"]
-                excel_path = "./output/DQN_Pong_result.xlsx"
+                excel_path = f"./output/DQN_{task}_result.xlsx"
                 df.to_excel(excel_path, index=False)
                 print("excel saved!")
                 
@@ -203,7 +197,7 @@ if __name__ == '__main__':
     TARGET_UPDATE = 1000
     RENDER = False
     lr = 1e-4
-    INITIAL_MEMORY = 1000
+    INITIAL_MEMORY = 5000
     MEMORY_SIZE = 10 * INITIAL_MEMORY
     
     # random seed
@@ -213,7 +207,9 @@ if __name__ == '__main__':
     random.seed(SEED)    
 
     # create environment
-    env = gym.make("ALE/Pong-v5", render_mode="rgb_array")
+    # env = gym.make("ALE/Breakout-v5", render_mode="rgb_array")
+    env = gym.make("PongNoFrameskip-v4", render_mode="rgb_array")
+    task = "PongNoFrameskip"
     env = make_env(env)
     env.action_space.seed(seed=SEED)
     n_actions = env.action_space.n
@@ -235,7 +231,7 @@ if __name__ == '__main__':
     memory = ReplayMemory(MEMORY_SIZE)
     
     # train model
-    train(env, 1000)
+    train(env, 100000)
     # torch.save(policy_net, "dqn_pong_model")
     # policy_net = torch.load("dqn_pong_model")
     # test(env, 1, policy_net, render=False)
